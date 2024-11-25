@@ -37,6 +37,13 @@ namespace RockWeb.Plugins.com_bemaservices.Assessments
     [Category( "BEMA Services > Assessments" )]
     [Description( "View the results of a Rating Survey." )]
 
+    [BooleanField (
+        "Allow Person QueryString",
+        Key = AttributeKey.AllowPersonQueryString,
+        Description = "Determines if any person other than the currently logged in person is allowed to be passed through the query string. For security reasons this is not allowed by default.",
+        DefaultBooleanValue = false,
+        Order = 0 )]
+
     #region Block Attributes
 
     [TextField( "Assessment Id Param",
@@ -58,9 +65,19 @@ namespace RockWeb.Plugins.com_bemaservices.Assessments
         {
             public const string EntryPage = "EntryPage";
             public const string AssessmentIdParam = "AssessmentIdParam";
+            public const string AllowPersonQueryString = "AllowPersonQueryString";
         }
 
         #endregion Attribute Keys
+
+        #region PageParameterKeys
+
+        private static class PageParameterKey
+        {
+            public const string PersonGuid = "PersonGuid";
+        }
+
+        #endregion PageParameterKeys
 
         #region Base Control Methods
 
@@ -165,7 +182,21 @@ namespace RockWeb.Plugins.com_bemaservices.Assessments
             ContentChannelItem contentChannelItem = GetContentChannelItem();
             contentChannelItem.LoadAttributes();
 
-            CurrentPerson.LoadAttributes();
+            Person targetPerson = CurrentPerson;
+
+            var personGuid = PageParameter ( PageParameterKey.PersonGuid ).AsGuidOrNull ();
+            var allowPersonQueryString = GetAttributeValue ( AttributeKey.AllowPersonQueryString ).AsBoolean ();
+
+            if ( personGuid.HasValue && allowPersonQueryString )
+            {
+                var person = new PersonService ( rockContext ).Get ( personGuid.Value );
+                if ( person != null )
+                {
+                    targetPerson = person;
+                }
+            }
+
+            targetPerson.LoadAttributes();
 
             AttributeMatrix resultMatrix = null;
             var resultMatrixGuid = contentChannelItem.GetAttributeValue( "AssessmentResults" ).AsGuidOrNull();
@@ -188,7 +219,7 @@ namespace RockWeb.Plugins.com_bemaservices.Assessments
                         attributeSummary.PersonAttribute = attributeCache;
                         attributeSummary.PrimaryDescription = resultItem.GetAttributeValue( "PrimaryDescription" );
                         attributeSummary.SecondaryDescription = resultItem.GetAttributeValue( "SecondaryDescription" );
-                        attributeSummary.Value = CurrentPerson.GetAttributeValue( attributeCache.Key ).AsInteger();
+                        attributeSummary.Value = targetPerson.GetAttributeValue( attributeCache.Key ).AsInteger();
                         attributeSummaryList.Add( attributeSummary );
                     }
                 }
@@ -196,17 +227,17 @@ namespace RockWeb.Plugins.com_bemaservices.Assessments
 
             var submissionDateAttributeGuid = contentChannelItem.GetAttributeValue( "SubmissionDateAttribute" ).AsGuid();
             var submissionDateAttributeCache = AttributeCache.Get( submissionDateAttributeGuid );
-            var submissionDate = CurrentPerson.GetAttributeValue( submissionDateAttributeCache.Key ).AsDateTime();
+            var submissionDate = targetPerson.GetAttributeValue( submissionDateAttributeCache.Key ).AsDateTime();
 
             var resultLava = contentChannelItem.GetAttributeValue( "ResultLava" );
 
 
             // Resolve the text field merge fields
-            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, CurrentPerson );
-            if ( CurrentPerson != null )
+            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( this.RockPage, targetPerson );
+            if ( targetPerson != null )
             {
-                CurrentPerson.LoadAttributes();
-                mergeFields.Add( "Person", CurrentPerson );
+                targetPerson.LoadAttributes();
+                mergeFields.Add( "Person", targetPerson );
                 mergeFields.Add( "Scores", attributeSummaryList.OrderByDescending( a => a.Value ).ToList() );
                 mergeFields.Add( "SubmissionDate", submissionDate );
                 mergeFields.Add( "Assessment", contentChannelItem );
