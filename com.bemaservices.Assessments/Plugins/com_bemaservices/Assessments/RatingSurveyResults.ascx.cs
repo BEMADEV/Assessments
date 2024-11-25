@@ -22,6 +22,7 @@ using System.Web.UI;
 using Rock;
 using Rock.Attribute;
 using Rock.Data;
+using Rock.Lava;
 using Rock.Model;
 using Rock.Web;
 using Rock.Web.Cache;
@@ -231,9 +232,9 @@ namespace RockWeb.Plugins.com_bemaservices.Assessments
         }
 
         #endregion
-        [DotLiquid.LiquidType( "PersonAttribute", "Value", "PrimaryDescription", "SecondaryDescription" )]
 
-        public class AttributeSummary
+
+        public class AttributeSummary : LavaDataObject
         {
             public AttributeCache PersonAttribute { get; set; }
             public int Value { get; set; }
